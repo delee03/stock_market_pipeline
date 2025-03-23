@@ -1,15 +1,30 @@
 from airflow.decorators import dag, task
+from airflow.hooks.base import BaseHook
+from airflow.sensors.base import PokeReturnValue
 from datetime import datetime
+import requests
 
+@dag(
+    start_date=datetime(2023, 1, 1),
+    schedule='@daily',
+    catchup=False,
+    tags=['stock_market'],
 
-@dag(schedule_interval='@daily', start_date=datetime(2021, 1, 1), catchup=False)
-def stocker_market():
-    @task()
-    def fetch_stock_data():
-        print('Fetching stock data')
+)
+def stock_market():
+    
+    #With using sensor to wait for API available 
+    @task.sensor(poke_interval=30, timeout=30, mode='poke')
+    def is_api_available() -> PokeReturnValue:
+        api = BaseHook.get_connection('stock_api')
+        url = f"{api.host}{api.extra_dejson['endpoint']}"
+        print(url)
+        response = requests.get(url, headers=api.extra_dejson['headers'])
+        condition = response.json()['finance']['result'] is None
+        return PokeReturnValue(is_done=condition, xcom_value=url)
+    
+    is_api_available()
+        
 
-    @task()
-    def process_stock_data():
-        print('Processing stock data')
-
-    fetch_stock_data >> process_stock_data
+stock_market()
+    
