@@ -4,8 +4,7 @@ from airflow.operators.python import PythonOperator
 from airflow.sensors.base import PokeReturnValue
 from datetime import datetime
 import requests
-from include.stock_market.tasks import _get_stock_prices
-
+from include.stock_market.tasks import _get_stock_prices, _store_prices
 SYMBOL="nvda"
 
 @dag(
@@ -32,7 +31,15 @@ def stock_market():
         python_callable=_get_stock_prices,
         op_kwargs={'url': '{{ti.xcom_pull(task_ids="is_api_available")}}','symbol': SYMBOL}
     )
-    is_api_available() >> getStockPrices
+    
+    store_prices = PythonOperator(
+        task_id = 'store_prices', 
+        python_callable= _store_prices,
+        op_kwargs={'stock': '{{ti.xcom_pull(task_ids="get_stock_prices")}}'}
+    )
+    
+    
+    is_api_available() >> getStockPrices >> store_prices
         
 
 stock_market()
